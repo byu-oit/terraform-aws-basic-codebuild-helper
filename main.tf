@@ -1,52 +1,44 @@
 locals {
-  install_terraform = [
-    "wget https://releases.hashicorp.com/terraform/0.12.19/terraform_0.12.19_linux_amd64.zip",
-    "unzip terraform_0.12.19_linux_amd64.zip",
-    "mv terraform /bin"
+
+  push_docker = (var.ecr_repo_name != null)
+  docker_build_and_push = [
+    "export ECR_TAG_NAME=`date +\"%Y-%m-%d_%H-%M-%S\"`",            //TODO: Add the ability to give different tag?
+    "$(aws ecr get-login --no-include-email --region $AWS_REGION)", // TODO: Region?
+    "ECR_IMAGE_NAME=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/${var.ecr_repo_name}:$ECR_TAG_NAME",
+    "docker build . -t $ECR_IMAGE_NAME",
+    "docker push $ECR_IMAGE_NAME",
+    "echo \"image_tag = \\\"$ECR_TAG_NAME\\\"\" > terraform.tfvars"
   ]
 
-  run_terraform = [
-    "mv *.tfvars $TERRAFORM_APPLICATION_DIR.",
-    "cd $TERRAFORM_APPLICATION_DIR",
-    "terraform init",
-    "terraform apply -auto-approve -input=false",
-    "cd $CODEBUILD_SRC_DIR"
-  ]
-
-  extract_appspec = [
-    "cd $TERRAFORM_APPLICATION_DIR",
-    "terraform output appspec > appspec.json",
-    "mv appspec.json $CODEBUILD_SRC_DIR/.",
-    "cd $CODEBUILD_SRC_DIR"
-  ]
-
-  appspec_artifacts = [
-    "appspec.json"
+  docker_artifacts = [
+    "*.tfvars"
   ]
 
   normal_cache = [
     "/root/cache/**/*"
   ]
 
-  terraform_build_spec = {
+  build_spec = {
     version = "0.2"
+    env = {
+      variables = var.env_variables
+    }
+
     phases = {
       install = {
         runtime-versions = merge({ docker = "18" }, var.runtimes)
-        commands         = local.install_terraform
+        commands         = []
       }
       build = {
         commands = concat(
-          local.run_terraform,
-          var.for_fargate_codedeploy ? local.extract_appspec : []
+          var.pre_script,
+          local.push_docker ? local.docker_build_and_push : [],
+          var.post_script
         )
       }
     }
     artifacts = {
-      files = concat(
-        var.artifacts,
-        var.for_fargate_codedeploy ? local.appspec_artifacts : []
-      )
+      files = concat(var.artifacts, local.push_docker ? local.docker_artifacts : [])
     }
     cache = {
       paths = local.normal_cache

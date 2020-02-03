@@ -1,5 +1,10 @@
-variable "artifacts" {
-  type = list(string)
+variable "pre_script" {
+  type    = list(string)
+  default = []
+}
+
+variable "post_script" {
+  type    = list(string)
   default = []
 }
 
@@ -8,7 +13,17 @@ variable "runtimes" {
   default = {}
 }
 
-variable "for_fargate_codedeploy" {
-  type    = bool
-  default = false
+variable "ecr_repo_name" {
+  type    = string
+  default = ""
+}
+
+variable "artifacts" {
+  type    = list(string)
+  default = []
+}
+
+variable "env_variables" {
+  type    = map(string)
+  default = {}
 }

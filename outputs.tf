@@ -1,3 +1,3 @@
 output "script" {
-  value = yamlencode(local.terraform_build_spec)
+  value = yamlencode(local.build_spec)
 }
